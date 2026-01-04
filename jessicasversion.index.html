@@ -4,274 +4,239 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>熊熊學英文 - 語音互動練習</title>
+    <!-- 引入支援 HTTPS 的外部資源 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&display=swap');
         
         body {
-            font-family: 'ZCOOL KuaiLe', sans-serif, system-ui;
-            background-color: #f0f9ff;
+            font-family: 'ZCOOL KuaiLe', 'Noto Sans TC', sans-serif;
+            background-color: #fefce8; /* 溫暖的淺黃色 */
             touch-action: manipulation;
         }
         
-        .bounce {
-            animation: bounce 0.5s ease;
-        }
-        
-        @keyframes bounce {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.2); }
-        }
-
+        /* 麥克風正在錄音的發光效果 */
         .mic-active {
-            animation: pulse 1.5s infinite;
+            animation: pulse-red 1.5s infinite;
             background-color: #ef4444 !important;
         }
 
-        @keyframes pulse {
+        @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
             70% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
             100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .bounce { animation: bounce 0.5s ease; }
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* 遊戲卡片邊框裝飾 */
+        .game-border {
+            border: 8px solid #fbbf24;
+            box-shadow: 0 20px 0px 0px #f59e0b;
         }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
-    <div id="game-card" class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-md text-center border-8 border-yellow-300">
-        <!-- 分數顯示 -->
+    <!-- 遊戲主容器 -->
+    <div id="game-container" class="bg-white rounded-[3rem] p-8 w-full max-w-md text-center game-border relative overflow-hidden">
+        
+        <!-- 進度與分數 -->
         <div class="flex justify-between items-center mb-6">
-            <div id="starTray" class="text-2xl font-bold text-yellow-500">⭐ 收集：0</div>
-            <div id="progress" class="text-gray-400 font-bold">1 / 5</div>
+            <div id="starCount" class="text-2xl font-bold text-yellow-500 bg-yellow-50 px-4 py-1 rounded-full border-2 border-yellow-200">⭐ 0</div>
+            <div id="stepInfo" class="text-blue-400 font-bold text-lg italic">Step 1 / 5</div>
         </div>
 
-        <!-- 角色與題目區 -->
-        <div class="mb-6">
-            <div id="avatar" class="text-7xl mb-4 transition-transform duration-300">🐻</div>
-            <div id="itemDisplay" class="text-6xl mb-4 bg-gray-50 rounded-2xl py-6">🍎</div>
-            <h2 id="questText" class="text-2xl font-bold text-blue-600 mb-2">紅通通的水果是什麼？</h2>
-            <div id="hintBox" class="text-lg text-gray-500 italic">說說看：apple</div>
+        <!-- 角色與題目展示 -->
+        <div class="mb-6 relative">
+            <div id="avatar" class="text-8xl mb-4 drop-shadow-lg transition-transform">🐻</div>
+            <div id="itemBox" class="bg-blue-50 rounded-3xl py-10 mb-4 border-4 border-dashed border-blue-100 flex items-center justify-center">
+                <span id="displayIcon" class="text-8xl">🍎</span>
+            </div>
+            <h2 id="questionText" class="text-2xl font-bold text-gray-800 mb-2 leading-tight">紅通通的水果是什麼？</h2>
+            <div id="hintText" class="inline-block bg-blue-500 text-white px-6 py-1 rounded-full text-lg font-bold shadow-md">說說看：apple</div>
         </div>
 
-        <!-- 互動回饋 -->
-        <div id="feedback" class="h-12 flex items-center justify-center text-lg font-medium text-purple-600 mb-8 bg-purple-50 rounded-full px-4">
-            點擊按鈕，開始說話吧！
+        <!-- 回饋訊息欄 -->
+        <div id="messageBoard" class="h-20 flex items-center justify-center text-lg font-medium text-blue-600 mb-8 bg-blue-50 rounded-2xl px-4 border border-blue-100 italic">
+            準備好了嗎？點擊麥克風跟我說話！
         </div>
 
-        <!-- 控制區 -->
+        <!-- 操作區 -->
         <div class="flex flex-col gap-4">
-            <button id="micBtn" onclick="handleMicClick()" class="bg-blue-500 hover:bg-blue-600 text-white rounded-full py-4 px-8 text-xl font-bold flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg">
-                <span id="micLabel">🎤 點我大聲說</span>
+            <button id="micBtn" onclick="handleMic()" class="bg-blue-500 hover:bg-blue-600 text-white rounded-3xl py-5 px-8 text-2xl font-bold flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-xl">
+                <span id="micLabel">🎤 開始大聲說</span>
             </button>
-            <button id="nextBtn" onclick="goNext()" class="bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full py-2 px-6 font-bold transition-all">
-                跳過 (NEXT)
+            <button onclick="skipQuestion()" class="text-gray-400 hover:text-gray-600 font-bold underline decoration-wavy">
+                跳過這題 (Skip)
             </button>
         </div>
     </div>
 
-    <!-- 勝利視窗 -->
-    <div id="winModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-3xl p-10 text-center max-w-sm w-full">
-            <div class="text-8xl mb-4">🏆</div>
-            <h2 class="text-3xl font-bold text-blue-600 mb-2">挑戰成功！</h2>
-            <p id="finalScore" class="text-xl text-gray-600 mb-8">你一共收集了 0 顆星星！</p>
-            <button onclick="resetGame()" class="bg-green-500 hover:bg-green-600 text-white rounded-full w-full py-4 text-xl font-bold shadow-lg">
+    <!-- 成功過關彈窗 -->
+    <div id="winModal" class="fixed inset-0 bg-yellow-500/90 hidden items-center justify-center p-6 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-[3rem] p-10 text-center max-w-sm w-full shadow-[0_20px_0px_0px_#ca8a04] border-8 border-white">
+            <div class="text-9xl mb-4 animate-bounce">🏆</div>
+            <h2 class="text-4xl font-bold text-gray-800 mb-2">太棒了！</h2>
+            <p id="finalScore" class="text-xl text-gray-600 mb-8 font-medium">挑戰成功，你是英文小高手！</p>
+            <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white rounded-2xl w-full py-5 text-2xl font-bold shadow-lg transition-transform active:scale-95">
                 再玩一次
             </button>
         </div>
     </div>
 
     <script>
-        /* ========= 題庫 ========= */
+        /* 題庫數據 */
         const quizData = [
-            { word: "apple", icon: "🍎", question: "紅通通的水果是什麼？", character: "👩🏻‍🏫" },
-            { word: "cat", icon: "🐱", question: "誰在喵喵叫呢？", character: "👩🏻‍🏫" },
-            { word: "dog", icon: "🐶", question: "小狗要怎麼說？", character: "👩🏻‍🏫" },
-            { word: "ball", icon: "⚽", question: "我們一起來踢球！", character: "👩🏻‍🏫" },
-            { word: ["fine", "good", "happy"], icon: "😊", question: "How are you today?", character: "👩🏻‍🏫", isDialogue: true }
+            { word: "apple", icon: "🍎", question: "紅通通的水果是什麼？", char: "🐻" },
+            { word: "cat", icon: "🐱", question: "誰在喵喵叫呢？", char: "🐱" },
+            { word: "dog", icon: "🐶", question: "小狗要怎麼說？", char: "🐶" },
+            { word: "ball", icon: "⚽", question: "我們一起來踢球！", char: "🐻" },
+            { word: ["fine", "good", "happy"], icon: "😊", question: "How are you today?", char: "🐱", isDialogue: true }
         ];
 
-        let currentStep = 0;
+        let currentIndex = 0;
         let stars = 0;
-        let fails = 0;
+        let isListening = false;
+
+        /* 語音辨識 API 初始化 */
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         let recognition;
 
-        const micBtn = document.getElementById('micBtn');
-        const micLabel = document.getElementById('micLabel');
-        const questText = document.getElementById('questText');
-        const itemDisplay = document.getElementById('itemDisplay');
-        const avatar = document.getElementById('avatar');
-        const hintBox = document.getElementById('hintBox');
-        const feedback = document.getElementById('feedback');
-        const starTray = document.getElementById('starTray');
-        const nextBtn = document.getElementById('nextBtn');
-        const winModal = document.getElementById('winModal');
-        const progressDisplay = document.getElementById('progress');
-
-        /* ========= 語音辨識初始化 ========= */
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
             recognition = new SpeechRecognition();
             recognition.lang = 'en-US';
             recognition.interimResults = false;
 
             recognition.onstart = () => {
-                micBtn.classList.add('mic-active');
-                micLabel.innerText = '👂 我在聽...';
+                isListening = true;
+                document.getElementById('micBtn').classList.add('mic-active');
+                document.getElementById('micLabel').innerText = '👂 正在聽...';
             };
 
             recognition.onend = () => {
-                micBtn.classList.remove('mic-active');
-                micLabel.innerText = '🎤 點我大聲說';
+                isListening = false;
+                document.getElementById('micBtn').classList.remove('mic-active');
+                document.getElementById('micLabel').innerText = '🎤 開始大聲說';
             };
 
             recognition.onresult = (event) => {
                 const said = event.results[0][0].transcript.toLowerCase();
-                if (said.includes("next")) {
-                    goNext(true);
-                    return;
-                }
-                processResult(said);
+                checkAnswer(said);
             };
 
-            recognition.onerror = (e) => {
-                showFeedback("熊熊沒聽清楚，再試一次吧！", "😯");
+            recognition.onerror = () => {
+                updateMessage("熊熊沒聽清楚，可以再說一次嗎？", "red");
             };
         }
 
-        /* ========= 載入題目 ========= */
+        /* 載入題目 */
         function loadQuiz() {
-            const data = quizData[currentStep];
-            questText.innerText = data.question;
-            itemDisplay.innerText = data.icon;
-            avatar.innerText = data.character;
-            progressDisplay.innerText = `${currentStep + 1} / ${quizData.length}`;
+            const data = quizData[currentIndex];
+            document.getElementById('avatar').innerText = data.char;
+            document.getElementById('displayIcon').innerText = data.icon;
+            document.getElementById('questionText').innerText = data.question;
+            document.getElementById('stepInfo').innerText = `Step ${currentIndex + 1} / ${quizData.length}`;
             
-            hintBox.innerText = data.isDialogue
-                ? "試著說：I am fine"
-                : `說說看：${data.word}`;
+            const hint = data.isDialogue ? "說：I am fine" : `說說看：${data.word}`;
+            document.getElementById('hintText').innerText = hint;
             
-            feedback.innerText = "點擊按鈕，開始說話吧！";
-            fails = 0;
-            nextBtn.style.opacity = '1';
-            nextBtn.disabled = false;
-
+            updateMessage("點擊麥克風，對我說英文吧！", "blue");
             speak(data.question, 'zh-TW');
         }
 
-        /* ========= 麥克風點擊 ========= */
-        function handleMicClick() {
-            if (recognition) {
-                try {
-                    recognition.start();
-                } catch(e) {
-                    console.log("Recognition already started");
-                }
+        /* 處理麥克風點擊 */
+        function handleMic() {
+            if (!recognition) {
+                alert("此瀏覽器不支援語音功能，請使用 Chrome 開啟。");
+                return;
+            }
+            if (isListening) return;
+            recognition.start();
+        }
+
+        /* 檢查答案 */
+        function checkAnswer(said) {
+            const data = quizData[currentIndex];
+            const targets = Array.isArray(data.word) ? data.word : [data.word];
+            const isCorrect = targets.some(t => said.includes(t));
+
+            if (isCorrect) {
+                stars++;
+                document.getElementById('starCount').innerText = `⭐ ${stars}`;
+                updateMessage(`🎉 太棒了！你說了「${said}」`, "green");
+                triggerWinEffects();
+                
+                setTimeout(() => {
+                    if (currentIndex < quizData.length - 1) {
+                        currentIndex++;
+                        loadQuiz();
+                    } else {
+                        showFinalWin();
+                    }
+                }, 2000);
             } else {
-                alert("此瀏覽器不支援語音功能，請更換 Chrome 瀏覽器。");
+                updateMessage(`😯 聽起來像「${said}」，再試一次？`, "red");
+                speak("Try again", "en-US");
+                document.getElementById('avatar').classList.add('bounce');
+                setTimeout(() => document.getElementById('avatar').classList.remove('bounce'), 500);
             }
         }
 
-        /* ========= 判斷結果 ========= */
-        function processResult(said) {
-            const data = quizData[currentStep];
-            const targetWords = Array.isArray(data.word) ? data.word : [data.word];
-            const correct = targetWords.some(w => said.includes(w));
-
-            if (correct) {
-                handleSuccess(said);
-            } else {
-                handleFailure(said);
-            }
-        }
-
-        /* ========= 成功處理 ========= */
-        function handleSuccess(said) {
-            stars++;
-            starTray.innerText = `⭐ 收集：${stars}`;
-            showFeedback(`太棒了！你說了「${said}」`, "🎉");
-            speak("Great job!", "en-US");
-            triggerConfetti();
-            
-            nextBtn.style.opacity = '0';
-            nextBtn.disabled = true;
-
-            setTimeout(() => {
-                if (currentStep < quizData.length - 1) {
-                    goNext();
-                } else {
-                    showWin();
-                }
-            }, 2500);
-        }
-
-        /* ========= 失敗處理 ========= */
-        function handleFailure(said) {
-            fails++;
-            showFeedback(`你說了「${said}」，再試一次！`, "🤔");
-            speak("Try again", "en-US");
-
-            if (fails >= 3) {
-                const answer = quizData[currentStep].word;
-                const hint = Array.isArray(answer) ? answer[0] : answer;
-                showFeedback(`提示：可以說「${hint}」或按 NEXT`, "💡");
-            }
-        }
-
-        /* ========= 下一題 ========= */
-        function goNext(byVoice = false) {
-            if (byVoice) speak("Next question!", "en-US");
-
-            currentStep++;
-            if (currentStep < quizData.length) {
+        /* 跳過題目 */
+        function skipQuestion() {
+            if (currentIndex < quizData.length - 1) {
+                currentIndex++;
                 loadQuiz();
             } else {
-                showWin();
+                showFinalWin();
             }
         }
 
-        /* ========= 語音合成 ========= */
-        function speak(text, lang) {
-            if (!window.speechSynthesis) return;
-            // 停止之前的播放
-            window.speechSynthesis.cancel();
-            const utter = new SpeechSynthesisUtterance(text);
-            utter.lang = lang;
-            utter.rate = 1.0;
-            window.speechSynthesis.speak(utter);
+        /* 顯示成功訊息 */
+        function updateMessage(text, color) {
+            const board = document.getElementById('messageBoard');
+            board.innerText = text;
+            board.className = `h-20 flex items-center justify-center text-lg font-bold mb-8 rounded-2xl px-4 border transition-colors duration-300`;
+            
+            if (color === "green") board.classList.add('bg-green-50', 'text-green-600', 'border-green-100');
+            else if (color === "red") board.classList.add('bg-red-50', 'text-red-500', 'border-red-100');
+            else board.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-100');
         }
 
-        /* ========= 視覺反饋 ========= */
-        function showFeedback(text, emoji) {
-            feedback.innerText = `${emoji} ${text}`;
-            avatar.classList.add('bounce');
-            setTimeout(() => avatar.classList.remove('bounce'), 500);
-        }
-
-        /* ========= 特效與結尾 ========= */
-        function triggerConfetti() {
+        /* 噴紙花效果 */
+        function triggerWinEffects() {
             confetti({
                 particleCount: 100,
                 spread: 70,
                 origin: { y: 0.6 },
-                colors: ['#3b82f6', '#fbbf24', '#a855f7']
+                colors: ['#3b82f6', '#fbbf24', '#f43f5e']
             });
+            speak("Great job!", "en-US");
         }
 
-        function showWin() {
+        /* 結束視窗 */
+        function showFinalWin() {
             document.getElementById('finalScore').innerText = `你一共收集了 ${stars} 顆星星！`;
-            winModal.style.display = 'flex';
+            document.getElementById('winModal').classList.replace('hidden', 'flex');
+            speak("Excellent! You finished all challenges!", "en-US");
         }
 
-        function resetGame() {
-            currentStep = 0;
-            stars = 0;
-            starTray.innerText = `⭐ 收集：0`;
-            winModal.style.display = 'none';
-            loadQuiz();
+        /* 語音播放 */
+        function speak(text, lang) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            utter.lang = lang;
+            window.speechSynthesis.speak(utter);
         }
 
-        // 初始化
+        /* 初始化載入 */
         window.onload = loadQuiz;
     </script>
 </body>
